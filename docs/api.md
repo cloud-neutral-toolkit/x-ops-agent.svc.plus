@@ -34,9 +34,9 @@ curl -XPOST http://localhost:8080/plan/generate -H 'Content-Type: application/js
 
 （围绕你给出的 SLO 表与 PG 架构），并在结尾把工作拆成Codex 任务提示词（逐条可直接驱动编码）。
 
-一、全局约定
+## 一、全局约定
 
-协议与编解码
+### 协议与编解码
 
 外部管理面：REST/JSON（OpenAPI 3.1）；内部高吞吐链路（OTLP、指标、日志）沿用各自原生协议。
 
@@ -46,23 +46,24 @@ curl -XPOST http://localhost:8080/plan/generate -H 'Content-Type: application/js
 
 版本：Header X-Api-Version: v1；消息 spec.version: "1.0"。
 
-追踪与幂等
+### 追踪与幂等
 
 统一头：X-Request-Id、X-Case-Id、traceparent（W3C TraceContext）。
 
 幂等：请求头 Idempotency-Key（服务端保存 24h 命中即返回首个结果）；命令与事件都带 event_id/command_id (UUID)。
 
-安全
+### 安全
 
 内部控制面：mTLS + SPIFFE/SPIRE；外部 API：OIDC JWT（aud=aiops），RBAC（tenant → scope → action）。
 
 策略：OPA（Rego）或 Cedar，决策日志落 PG（gate_decision）。
 
-可观测
+### 可观测
 
 /metrics（Prometheus）；结构化日志（JSONL）；OpenTelemetry Traces/Logs。
 
-二、统一响应与错误码
+## 二、统一响应与错误码
+```json
 // 统一响应 Envelope
 {
   "request_id": "b3e1-...-9d",
@@ -70,32 +71,33 @@ curl -XPOST http://localhost:8080/plan/generate -H 'Content-Type: application/js
   "message": "OK",
   "data": { "...": "..." }
 }
+```
 
-code	含义
-0	OK
-400x	校验/幂等/语义错误（如 4001 不合法参数、4002 幂等冲突）
-401x	认证失败
-403x	授权失败
-404x	资源不存在
-409x	状态冲突（不可迁移、审批中）
-4290	限流
-499x	客户端主动取消
-500x	服务内部错误
-503x	依赖不可用
-三、消息与主题规范（NATS/Redpanda）
+| code | 含义 |
+| ---- | ---- |
+| 0 | OK |
+| 400x | 校验/幂等/语义错误（如 4001 不合法参数、4002 幂等冲突） |
+| 401x | 认证失败 |
+| 403x | 授权失败 |
+| 404x | 资源不存在 |
+| 409x | 状态冲突（不可迁移、审批中） |
+| 4290 | 限流 |
+| 499x | 客户端主动取消 |
+| 500x | 服务内部错误 |
+| 503x | 依赖不可用 |
+## 三、消息与主题规范（NATS/Redpanda）
 
-命名约定
+### 命名约定
 
-命令（NATS）：cmd.<module>.<action>
+- 命令（NATS）：cmd.<module>.<action>
+- 事件（Redpanda）：evt.<bounded-context>.<event-name>.v1
+- 例：cmd.analyst.run, evt.case.plan_proposed.v1, evt.exec.step_finished.v1
 
-事件（Redpanda）：evt.<bounded-context>.<event-name>.v1
-
-例：cmd.analyst.run, evt.case.plan_proposed.v1, evt.exec.step_finished.v1
-
-关键消息 Schema（JSON）
+### 关键消息 Schema（JSON）
 
 evt.obs.event.v1（传感器归一化后的观测事件）
 
+```json
 {
   "spec": {"version": "1.0"},
   "event_id": "uuid",
@@ -107,10 +109,11 @@ evt.obs.event.v1（传感器归一化后的观测事件）
   "attributes": {"metric": "latency_ms", "p95": 812},
   "oo_ref": {"dataset": "metrics", "object_id": 12345}
 }
-
+```
 
 cmd.analyst.run（触发分钟级聚合与异常检测）
 
+```json
 {
   "command_id": "uuid",
   "tenant": "t-001",
@@ -119,10 +122,12 @@ cmd.analyst.run（触发分钟级聚合与异常检测）
   "rules": ["latency_p95>800ms AND error_rate>1%"],
   "context": {"case_id": "uuid"}
 }
+```
 
 
 evt.analysis.findings.v1
 
+```json
 {
   "case_id": "uuid",
   "findings": [
@@ -134,7 +139,7 @@ evt.analysis.findings.v1
 
 evt.plan.proposed.v1 / evt.plan.approved.v1 / cmd.exec.run / evt.exec.step_result.v1 类似结构，均包含 case_id/plan_id/step_id、ts、actor、evidence、status 等字段。
 
-四、REST 接口（OpenAPI 摘要）
+## 四、REST 接口（OpenAPI 摘要）
 
 路径前缀 /api/v1；仅列关键字段，细节可据此扩展生成完整 OAS。
 
@@ -147,10 +152,9 @@ POST /ingest/logs（JSONL 或 NDJSON 批量）
 POST /ingest/hint（写 oo_locator 索引，便于回查）
 
 Req:
-
+```json
 {"tenant":"t-001","dataset":"logs","bucket":"oo-bkt","object_key":"...","t_from":"...","t_to":"...","attributes":{}}
-
-
+```
 SLO：写入 p99 < 2s
 
 2) Analyst（异常检测/聚合）
@@ -160,10 +164,9 @@ POST /analyze/run
 Req:（同 cmd.analyst.run）
 
 Resp:
-
+```json
 {"job_id":"uuid","estimated_finish_sec":120}
-
-
+```
 GET /analyze/jobs/{job_id}
 
 Resp：status: PENDING|RUNNING|DONE|FAILED, findings:[...]
@@ -176,13 +179,17 @@ POST /plan/generate
 
 Req：
 
+```json
 {"case_id":"uuid","findings":[...],
  "kb_hints":{"topk":5,"similar_tags":["rollout","latency"]}}
+```
 
 
 Resp：
 
+```json
 {"plan_id":"uuid","dsl": "yaml-string", "risk_score":0.62, "rollback":"..."}
+```
 
 
 SLO：< 30s 产出首版 plan.proposed
@@ -193,13 +200,15 @@ POST /gate/eval
 
 Req：
 
+```json
 {"plan_id":"uuid","case_id":"uuid","policies":["slo-baseline","change-window"],"approvers":["ops_lead"]}
-
+```
 
 Resp：
 
+```json
 {"approved":true,"constraints":{"change_window":"2025-08-29T12:00Z/13:00Z"},"reason":"auto-pass"}
-
+```
 
 SLO：自动评估 < 1s（OPA/Cedar 本地缓存）
 
@@ -209,8 +218,10 @@ POST /adapter/exec
 
 Req：
 
+```json
 {"plan_id":"uuid","case_id":"uuid","dry_run":false,
  "adapters":[{"type":"gitops","args":{"app":"myapp"}},{"type":"k8s","args":{"namespace":"ns"}}]}
+```
 
 
 Resp：exec_id
@@ -231,24 +242,29 @@ SLO：5 分钟内能被检索到
 
 POST /case/create
 
+```json
 {"title":"p95 spike","tenant":"t-001","resource_urn":"...","severity":"ERROR","labels":{"env":"prod"}}
+```
 
 
 → 返回 case_id，初始状态 NEW
 
 PATCH /case/{id}/transition
 
+```json
 {"event":"ANALYZE" | "PLAN" | "EXECUTE" | "VERIFY" | "CLOSE","reason":"..."}
+```
 
 
 GET /case/{id}（状态、时间线、证据链）
 
 SLO：每次状态迁移原子且可回放（采用事务外盒 Outbox，见下）
 
-五、缺失域表（在你现有 PG DDL 基础上补齐）
+## 五、缺失域表（在你现有 PG DDL 基础上补齐）
 
 以下 新增 表补全 Case/Plan/Gate/Exec/Outbox/Idempotency 等“控制面”实体。
 
+```sql
 -- 9) Case 主体与时间线
 CREATE TABLE ops_case (
   case_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -359,8 +375,10 @@ CREATE TABLE idempotency (
   created_at TIMESTAMPTZ DEFAULT now(),
   ttl        TIMESTAMPTZ
 );
+```
 
-六、Plan DSL（最小可用示例）
+## 六、Plan DSL（最小可用示例）
+```yaml
 apiVersion: aiops.svc.plus/v1
 kind: ChangePlan
 metadata:
@@ -388,8 +406,9 @@ spec:
     - type: sli
       expr: "histogram_quantile(0.95, rate(http_request_duration_ms_bucket{svc='myapp'}[5m])) < 500"
       window: "10m"
+```
 
-七、SLI/SLO 落地度量（摘）
+## 七、SLI/SLO 落地度量（摘）
 
 Sensor：ingest_write_latency_seconds{quantile="0.99"} < 2
 
@@ -405,7 +424,8 @@ Librarian：kb_ingest_to_search_seconds < 300
 
 Orchestrator：case_transition_latency_seconds；outbox_lag_seconds≈0
 
-八、Go 侧接口（最小接口定义）
+## 八、Go 侧接口（最小接口定义）
+```go
 // 以端口接口解耦实现，便于替换适配器
 type Analyst interface {
   Run(ctx context.Context, req AnalyzeRequest) (jobID string, err error)
@@ -428,5 +448,5 @@ type Librarian interface {
 type Orchestrator interface {
   Transition(ctx context.Context, caseID string, event CaseEvent) (CaseState, error)
 }
-
+```
 

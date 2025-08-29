@@ -1,15 +1,22 @@
 # Project Overview
 
-This document describes the initial design for OPSAgent based on the
-"OPS Agent 思维链条". The agent follows a five step workflow to diagnose
-issues:
+This project now exposes a modular AIOps pipeline composed of seven
+cooperating modules:
 
-1. **Who is in trouble** – Identify services with abnormal metrics.
-2. **When** – Determine the time period where the issue occurred.
-3. **Which request** – Collect traces and logs for the affected service.
-4. **Where** – Locate the pods or nodes associated with the failing spans.
-5. **What** – Infer the root cause and suggest actions.
+```
+Sensor → Analyst → Planner → Gatekeeper → Executor → Librarian → Orchestrator
+```
 
-The current codebase only provides placeholders for these steps. Future
-work will implement real data collectors (Prometheus, Loki, Jaeger/Tempo),
-rule engines and reporting sinks such as Slack or Grafana.
+Each module has its own REST endpoint under `/api/v1` and exchanges
+CloudEvents over NATS (commands) and Redpanda (events). Common headers
+such as `X-Request-Id` and `traceparent` enable end-to-end tracing, while
+`Idempotency-Key` prevents duplicate work.
+
+The workflow extends the earlier "OPS Agent 思维链条": identify abnormal
+signals, analyze anomalies, generate and evaluate remediation plans,
+execute actions, capture knowledge and orchestrate case state
+transitions.
+
+Most modules are still implemented as placeholders. Future work will
+connect real data collectors (Prometheus, Loki, Jaeger/Tempo), rule
+engines and reporting sinks such as Slack or Grafana.
