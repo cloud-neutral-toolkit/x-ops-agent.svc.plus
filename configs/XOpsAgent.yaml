@@ -1,0 +1,22 @@
+inputs:
+  db:
+    pgurl: "postgres://shenlan:password@127.0.0.1:5432/shenlan"
+    otel_endpoint:
+      - metric
+      - log
+      - traces
+outputs:
+  api:
+    listen: "0.0.0.0:8080"
+    type: json
+  gitops:
+    - repoUrl: ""
+      token: ""
+models:
+  embedder:
+    models: "bge-m3"
+    endpoint: "http://127.0.0.1:9000/v1/embeddings"
+  generator:
+    models:
+      - "deepseek-r1:8b"
+    endpoint: "http://127.0.0.1:11434/v1/chat/completions"

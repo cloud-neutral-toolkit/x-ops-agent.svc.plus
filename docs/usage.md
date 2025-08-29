@@ -1,16 +1,16 @@
 # Usage
 
-This repository only contains skeleton code. To build the binary run:
+Build the daemon:
 
 ```bash
-$ go build -o opsagent
+go build -o xopsagent ./cmd/agent
 ```
 
-Run the executable with an optional configuration file:
+Run with a configuration file (default `/etc/XOpsAgent.yaml`):
 
 ```bash
-$ ./opsagent -config config.yaml
+./xopsagent --config /etc/XOpsAgent.yaml
 ```
 
-The configuration loader currently returns default values. Future versions will
-parse real configuration files describing metric, trace and log sources.
+A sample configuration is provided at `configs/XOpsAgent.yaml`.
+The agent will start an HTTP server exposing the module endpoints described in [API Reference](api.md).
