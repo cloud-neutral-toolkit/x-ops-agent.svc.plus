@@ -1,5 +1,7 @@
 # API Reference
 
+本仓库提供 AIOps 服务基础骨架，包含健康检查 `/healthz` 与指标端点 `/metrics`，并接入 Gin、OpenAPI、NATS、Redpanda、TimescaleDB 与 OpenTelemetry。
+
 本项目遵循模块化架构，关键路径如下：
 
 Sensor → Analyst → Planner → Gatekeeper → Executor → Librarian → Orchestrator
