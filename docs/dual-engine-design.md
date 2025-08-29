@@ -88,3 +88,19 @@ Embeddings enable semantic search across documents, runbooks, or past incidents.
 - **Graph & vectors**: AGE and pgvector keep topology and knowledge-base features decoupled yet queryable inside PostgreSQL.
 
 This setup forms a unified evidence framework for AIOps while remaining lightweight and scalable.
+
+## Control-Plane Tables
+
+The API specification adds a set of auxiliary tables in PostgreSQL to
+track remediation workflow state. Key tables include:
+
+- `ops_case` and `case_timeline` for case management.
+- `plan_proposed` / `plan_approved` and `gate_decision` for planning and
+  policy evaluation.
+- `exec_run`, `exec_step` and `verify_checkpoint` for execution and
+  verification.
+- `outbox` and `idempotency` to ensure reliable messaging and
+  idempotent API semantics.
+
+These tables complement the observability stores above, providing a
+cohesive backbone for Sensor → Orchestrator modules.
