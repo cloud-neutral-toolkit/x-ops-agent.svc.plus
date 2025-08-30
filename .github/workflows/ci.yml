@@ -1,35 +1,55 @@
-name: Build and Release OPSAgent
+name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
     tags: ['v*']
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
+    inputs:
+      build:
+        description: 'Run build job'
+        required: false
+        type: boolean
+        default: true
+      unit:
+        description: 'Run unit tests'
+        required: false
+        type: boolean
+        default: true
+      integration:
+        description: 'Run integration tests'
+        required: false
+        type: boolean
+        default: true
+      fixtures:
+        description: 'Run mock/fixtures'
+        required: false
+        type: boolean
+        default: true
+      release:
+        description: 'Run release job'
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: write
 
 jobs:
   build:
+    if: github.event_name != 'workflow_dispatch' || inputs.build == true
     strategy:
       fail-fast: false
       matrix:
-        platform: [linux, windows, macos]
+        platform: [linux, macos]
         arch: [amd64, arm64]
-        exclude:
-          - platform: windows
-            arch: arm64
-          - platform: macos
-            arch: amd64
-    # 选择与平台匹配的 runner（macOS/Windows/Linux）
-    runs-on: ${{ fromJson('{"linux":"ubuntu-22.04","windows":"windows-latest","macos":"macos-latest"}')[matrix.platform] }}
+    runs-on: ${{ fromJson('{"linux":"ubuntu-latest","macos":"macos-latest"}')[matrix.platform] }}
     env:
       GOOS: ${{ matrix.platform }}
       GOARCH: ${{ matrix.arch }}
       CGO_ENABLED: 0
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -67,15 +87,8 @@ jobs:
           NAME="opsagent-${{ matrix.platform }}-${{ matrix.arch }}"
           mkdir -p "package/$NAME"
           cp -r bin "package/$NAME/"
-          # 也可以根据需要把 README / LICENSE / configs 之类的放进去：
-          # cp -r LICENSE README.md configs package/$NAME/ || true
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            (cd package && powershell -Command "Compress-Archive -Path '$NAME/*' -DestinationPath '$NAME.zip'")
-            echo "ARTIFACT=package/$NAME.zip" >> $GITHUB_ENV
-          else
-            tar -C package -czf "package/$NAME.tar.gz" "$NAME"
-            echo "ARTIFACT=package/$NAME.tar.gz" >> $GITHUB_ENV
-          fi
+          tar -C package -czf "package/$NAME.tar.gz" "$NAME"
+          echo "ARTIFACT=package/$NAME.tar.gz" >> $GITHUB_ENV
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -83,9 +96,98 @@ jobs:
           name: opsagent-${{ matrix.platform }}-${{ matrix.arch }}
           path: ${{ env.ARTIFACT }}
 
+  unit-tests:
+    if: github.event_name != 'workflow_dispatch' || inputs.unit == true
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux, macos]
+        arch: [amd64, arm64]
+    runs-on: ${{ fromJson('{"linux":"ubuntu-latest","macos":"macos-latest"}')[matrix.platform] }}
+    env:
+      GOOS: ${{ matrix.platform }}
+      GOARCH: ${{ matrix.arch }}
+      CGO_ENABLED: 0
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run unit tests
+        shell: bash
+        run: make test
+
+  integration-tests:
+    if: github.event_name != 'workflow_dispatch' || inputs.integration == true
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux, macos]
+        arch: [amd64, arm64]
+    runs-on: ${{ fromJson('{"linux":"ubuntu-latest","macos":"macos-latest"}')[matrix.platform] }}
+    env:
+      GOOS: ${{ matrix.platform }}
+      GOARCH: ${{ matrix.arch }}
+      CGO_ENABLED: 0
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Start dependencies
+        shell: bash
+        run: docker compose up -d
+
+      - name: Run database migrations
+        shell: bash
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/ops?sslmode=disable
+        run: |
+          go install github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+          make migrate
+
+      - name: Run integration tests
+        shell: bash
+        run: make test
+
+      - name: Stop dependencies
+        if: always()
+        shell: bash
+        run: docker compose down
+
+  fixtures:
+    if: github.event_name != 'workflow_dispatch' || inputs.fixtures == true
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux, macos]
+        arch: [amd64, arm64]
+    runs-on: ${{ fromJson('{"linux":"ubuntu-latest","macos":"macos-latest"}')[matrix.platform] }}
+    env:
+      GOOS: ${{ matrix.platform }}
+      GOARCH: ${{ matrix.arch }}
+      CGO_ENABLED: 0
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate mocks/fixtures
+        shell: bash
+        run: echo "TODO: add mock and fixture generation"
+
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') && (github.event_name != 'workflow_dispatch' || inputs.release == true)
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -98,6 +200,6 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/**/*  # 上传所有平台/架构的压缩包
+          files: dist/**
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
