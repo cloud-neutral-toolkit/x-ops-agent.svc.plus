@@ -6,15 +6,10 @@ on:
     tags: ['v*']
   pull_request:
     branches: [ main ]
-  workflow_dispatch: [ main ]
+  workflow_dispatch:
 
-jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -28,17 +23,12 @@ jobs:
             arch: arm64
           - platform: macos
             arch: amd64
-        include:
-          - platform: linux
-            arch: amd64
-          - platform: windows
-            arch: amd64
-          - platform: macos
-            arch: arm64
-    runs-on: ${{ fromJson("{"linux":"ubuntu-22.04","windows":"windows-latest","macos":"macos-latest"}")[matrix.platform] }}
+    # 选择与平台匹配的 runner（macOS/Windows/Linux）
+    runs-on: ${{ fromJson('{"linux":"ubuntu-22.04","windows":"windows-latest","macos":"macos-latest"}')[matrix.platform] }}
     env:
       GOOS: ${{ matrix.platform }}
       GOARCH: ${{ matrix.arch }}
+      CGO_ENABLED: 0
 
     steps:
       - name: Checkout code
@@ -48,29 +38,45 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: true
+
+      - name: Tidy & Verify
+        shell: bash
+        run: |
+          rm -f go.sum
+          go mod tidy
+          go mod verify
 
       - name: Run tests
         shell: bash
         run: go test ./...
 
-      - name: Build binary
+      - name: Build (api & agent)
         shell: bash
         run: |
+          mkdir -p bin
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            go build -o opsagent.exe .
+            go build -o bin/opsagent-api.exe ./cmd/api
+            go build -o bin/opsagent-agent.exe ./cmd/agent
           else
-            go build -o opsagent .
+            go build -o bin/opsagent-api ./cmd/api
+            go build -o bin/opsagent-agent ./cmd/agent
           fi
 
       - name: Package artifact
         shell: bash
         run: |
+          NAME="opsagent-${{ matrix.platform }}-${{ matrix.arch }}"
+          mkdir -p "package/$NAME"
+          cp -r bin "package/$NAME/"
+          # 也可以根据需要把 README / LICENSE / configs 之类的放进去：
+          # cp -r LICENSE README.md configs package/$NAME/ || true
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            zip opsagent-${{ matrix.platform }}-${{ matrix.arch }}.zip opsagent.exe
-            echo "ARTIFACT=opsagent-${{ matrix.platform }}-${{ matrix.arch }}.zip" >> $GITHUB_ENV
+            (cd package && powershell -Command "Compress-Archive -Path '$NAME/*' -DestinationPath '$NAME.zip'")
+            echo "ARTIFACT=package/$NAME.zip" >> $GITHUB_ENV
           else
-            tar -czf opsagent-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz opsagent
-            echo "ARTIFACT=opsagent-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz" >> $GITHUB_ENV
+            tar -C package -czf "package/$NAME.tar.gz" "$NAME"
+            echo "ARTIFACT=package/$NAME.tar.gz" >> $GITHUB_ENV
           fi
 
       - name: Upload artifact
@@ -83,15 +89,17 @@ jobs:
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          files: dist/**/*
+          files: dist/**/*  # 上传所有平台/架构的压缩包
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
