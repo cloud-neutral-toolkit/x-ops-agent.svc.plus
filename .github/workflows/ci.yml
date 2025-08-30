@@ -67,12 +67,19 @@ jobs:
           go mod tidy
           go mod verify
 
-      - name: Build (api & agent)
+      - name: Run tests
+        shell: bash
+        run: go test ./...
+
+      - name: Build
         shell: bash
         run: |
           mkdir -p bin
-          go build -o bin/opsagent-api ./cmd/api
-          go build -o bin/opsagent-agent ./cmd/agent
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            go build -o bin/opsagent.exe ./cmd/agent
+          else
+            go build -o bin/opsagent ./cmd/agent
+          fi
 
       - name: Package artifact
         shell: bash

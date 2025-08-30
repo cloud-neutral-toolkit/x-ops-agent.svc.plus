@@ -1,8 +1,8 @@
 .PHONY: run test migrate deps tidy build clean-mod
 
-# Run the API
+# Run the API via unified binary
 run:
-	go run ./cmd/api
+        go run ./cmd/agent --mode api
 
 # Run all tests
 test:
@@ -22,7 +22,8 @@ tidy:
 
 # Build project
 build:
-	@go build ./...
+        @mkdir -p bin
+        @go build -o bin/opsagent ./cmd/agent
 
 # Clean and re-download modules
 clean-mod:

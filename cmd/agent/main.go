@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
 	"net/http"
@@ -9,6 +10,9 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/yourname/ops-agent-poc/api"
+	"github.com/yourname/ops-agent-poc/internal/config"
+	"github.com/yourname/ops-agent-poc/internal/server"
+	"github.com/yourname/ops-agent-poc/pkg/telemetry"
 )
 
 type Config struct {
@@ -52,11 +56,8 @@ func loadConfig(path string) (*Config, error) {
 	return &cfg, nil
 }
 
-func main() {
-	cfgPath := flag.String("config", "/etc/XOpsAgent.yaml", "path to config file")
-	flag.Parse()
-
-	cfg, err := loadConfig(*cfgPath)
+func runAgent(cfgPath string) {
+	cfg, err := loadConfig(cfgPath)
 	if err != nil {
 		log.Fatalf("load config: %v", err)
 	}
@@ -72,5 +73,38 @@ func main() {
 	log.Printf("XOpsAgent daemon listening on %s", listen)
 	if err := http.ListenAndServe(listen, mux); err != nil {
 		log.Fatalf("listen: %v", err)
+	}
+}
+
+func runAPI() {
+	ctx := context.Background()
+	cfg := config.Load()
+	shutdown, err := telemetry.Init(ctx, "aiops", cfg.OtlpEndpoint)
+	if err != nil {
+		log.Fatalf("failed to init telemetry: %v", err)
+	}
+	defer func() { _ = shutdown(ctx) }()
+
+	srv, err := server.New(cfg)
+	if err != nil {
+		log.Fatalf("server init: %v", err)
+	}
+	if err := srv.Run(ctx); err != nil {
+		log.Fatalf("server run: %v", err)
+	}
+}
+
+func main() {
+	mode := flag.String("mode", "agent", "mode to run: agent or api")
+	cfgPath := flag.String("config", "/etc/XOpsAgent.yaml", "path to config file (agent mode)")
+	flag.Parse()
+
+	switch *mode {
+	case "agent":
+		runAgent(*cfgPath)
+	case "api":
+		runAPI()
+	default:
+		log.Fatalf("unknown mode: %s", *mode)
 	}
 }
