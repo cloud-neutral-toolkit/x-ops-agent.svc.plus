@@ -10,7 +10,7 @@ test:
 
 # Run database migrations
 migrate:
-	migrate -path migrations -database $$DATABASE_URL up
+	migrate -path internal/migrations -database $$DATABASE_URL up
 
 # Install dependencies and build
 deps: tidy build
@@ -23,7 +23,7 @@ tidy:
 # Build project
 build:
 	@mkdir -p bin
-	@go build -o bin/opsagent ./cmd/agent
+	@go build -o bin/xopsagent ./cmd/agent
 
 # Clean and re-download modules
 clean-mod:

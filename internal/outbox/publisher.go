@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nats-io/nats.go"
 
-	db "github.com/yourname/ops-agent-poc/db/sqlc"
+	db "github.com/yourname/XOpsAgent/db/sqlc"
 )
 
 type Publisher struct {

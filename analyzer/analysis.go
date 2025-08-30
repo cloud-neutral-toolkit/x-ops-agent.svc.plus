@@ -1,8 +1,8 @@
 package analyzer
 
 import (
-	"github.com/yourname/ops-agent-poc/model"
-	"github.com/yourname/ops-agent-poc/utils"
+	"github.com/yourname/XOpsAgent/internal/model"
+	"github.com/yourname/XOpsAgent/utils"
 )
 
 // AnalyzeAbnormalServices identifies services with abnormal metrics.

@@ -9,10 +9,10 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/yourname/ops-agent-poc/api"
-	"github.com/yourname/ops-agent-poc/internal/config"
-	"github.com/yourname/ops-agent-poc/internal/server"
-	"github.com/yourname/ops-agent-poc/pkg/telemetry"
+	"github.com/yourname/XOpsAgent/api"
+	"github.com/yourname/XOpsAgent/internal/config"
+	"github.com/yourname/XOpsAgent/internal/server"
+	"github.com/yourname/XOpsAgent/pkg/telemetry"
 )
 
 type Config struct {

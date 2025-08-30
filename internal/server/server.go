@@ -14,9 +14,9 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/yourname/ops-agent-poc/internal/config"
-	dbpkg "github.com/yourname/ops-agent-poc/internal/db"
-	logpkg "github.com/yourname/ops-agent-poc/pkg/log"
+	"github.com/yourname/XOpsAgent/internal/config"
+	dbpkg "github.com/yourname/XOpsAgent/internal/db"
+	logpkg "github.com/yourname/XOpsAgent/pkg/log"
 )
 
 // Server wraps application dependencies and HTTP router.

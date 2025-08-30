@@ -10,8 +10,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nats-io/nats.go"
 
-	"github.com/yourname/ops-agent-poc/outbox"
-	"github.com/yourname/ops-agent-poc/repository"
+	"github.com/yourname/XOpsAgent/internal/outbox"
+	"github.com/yourname/XOpsAgent/internal/repository"
 )
 
 func main() {

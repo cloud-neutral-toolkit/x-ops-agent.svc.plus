@@ -3,7 +3,7 @@ sql:
   - engine: "postgresql"
     schema:
       - "db/schema.sql"
-      - "migrations"
+      - "internal/migrations"
     queries: 
       - "internal/db/queries.sql"
     gen:
