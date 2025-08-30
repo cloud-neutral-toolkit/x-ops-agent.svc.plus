@@ -1,4 +1,4 @@
-# OPS Agent PoC (TimescaleDB + OpenObserve)
+# XOpsAgent (TimescaleDB + OpenObserve)
 
 一个最小可跑的闭环示例：Alertmanager → （OPS Agent）→ GitHub PR →（可选）ArgoCD 健康检测 → TimescaleDB 指标验证。
 
@@ -8,7 +8,7 @@ Librarian → Orchestrator，接口细节见 [docs/api.md](docs/api.md)。
 ## 目录结构
 
 ```
-ops-agent-poc/
+XOpsAgent/
 ├── docker-compose.yml
 ├── configs/
 │   ├── otelcol.yaml

@@ -44,16 +44,16 @@ jobs:
       - run: go test ./...
       - run: |
           mkdir -p bin
-          go build -o bin/opsagent ./cmd/agent
+          go build -o bin/xopsagent ./cmd/agent
       - run: |
-          NAME="opsagent-${{ matrix.platform }}-${{ matrix.arch }}"
+          NAME="xopsagent-${{ matrix.platform }}-${{ matrix.arch }}"
           mkdir -p "package/$NAME"
           cp -r bin "package/$NAME/"
           tar -C package -czf "package/$NAME.tar.gz" "$NAME"
           echo "ARTIFACT=package/$NAME.tar.gz" >> $GITHUB_ENV
       - uses: actions/upload-artifact@v4
         with:
-          name: opsagent-${{ matrix.platform }}-${{ matrix.arch }}
+          name: xopsagent-${{ matrix.platform }}-${{ matrix.arch }}
           path: ${{ env.ARTIFACT }}
 
   unit-tests:

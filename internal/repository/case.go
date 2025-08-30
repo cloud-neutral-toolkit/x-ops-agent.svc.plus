@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	db "github.com/yourname/ops-agent-poc/db/sqlc"
+	db "github.com/yourname/XOpsAgent/db/sqlc"
 )
 
 type CaseRepository struct {
