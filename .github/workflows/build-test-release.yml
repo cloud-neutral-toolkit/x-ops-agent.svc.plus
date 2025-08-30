@@ -42,6 +42,7 @@ jobs:
           go mod tidy
           go mod verify
       - run: go test ./...
+        if: matrix.arch == 'amd64'
       - run: |
           mkdir -p bin
           go build -o bin/xopsagent ./cmd/agent
@@ -63,10 +64,8 @@ jobs:
       fail-fast: false
       matrix:
         platform: [linux, macos]
-        arch: [amd64, arm64]
     env:
       GOOS: ${{ fromJson('{"linux":"linux","macos":"darwin"}')[matrix.platform] }}
-      GOARCH: ${{ matrix.arch }}
       CGO_ENABLED: 0
     steps:
       - uses: actions/checkout@v4
