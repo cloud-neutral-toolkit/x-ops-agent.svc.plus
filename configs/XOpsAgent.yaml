@@ -1,16 +1,16 @@
 inputs:
   db:
     pgurl: "postgres://shenlan:password@127.0.0.1:5432/shenlan"
-    otel_endpoint:
-      - metric
-      - log
-      - traces
+  otel:
+    endpoint: http://openobserve:5080/api/default/
+    headers:
+      Authorization: "Basic YWRtaW5AZXhhbXBsZS5jb206Q29tcGxleFBhc3MxMjMh"  # admin@example.com:ComplexPass123!
 outputs:
   api:
     listen: "0.0.0.0:8080"
     type: json
   gitops:
-    - repoUrl: ""
+    - repoUrl: "https://github.com/svc-design/gitops.git"
       token: ""
 models:
   embedder:
