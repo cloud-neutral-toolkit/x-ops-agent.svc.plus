@@ -109,7 +109,8 @@ jobs:
       CGO_ENABLED: 0
     steps:
       - uses: actions/checkout@v4
-      - run: echo "TODO: add mock and fixture generation"
+      - run: |
+          echo "TODO: add mock and fixture generation"
 
   release:
     needs: build
