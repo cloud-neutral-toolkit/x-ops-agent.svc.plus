@@ -116,3 +116,16 @@ Agent 的 `/alertmanager` 接口在提交 PR、（可选）等待 ArgoCD Healthy
 - PR 失败：检查 `GITHUB_*` 变量、`values.yaml` 路径是否存在、Token 权限（repo:contents, pull_request）。
 - ArgoCD 跳过：不配置 `ARGOCD_*` 就会直接跳过等待环节。
 - Timescale 没数据：先执行 `seed_latency()` 或把业务指标写入 `metrics_point`
+
+## CI
+
+直接用 API 触发（高级用法）
+
+GitHub REST API v3:
+
+curl -X POST \
+  -H "Accept: application/vnd.github+json" \
+  -H "Authorization: Bearer <YOUR_TOKEN>" \
+  https://api.github.com/repos/<OWNER>/<REPO>/actions/workflows/build-test-release.yml/dispatches \
+  -d '{"ref":"main","inputs":{"build":"true","unit":"true","integration":"false","fixtures":"false","release":"false"}}'
+

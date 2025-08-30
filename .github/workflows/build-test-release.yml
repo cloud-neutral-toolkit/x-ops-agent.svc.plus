@@ -1,0 +1,127 @@
+name: Build & Test & Release
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: ${{ fromJson('{"linux":"ubuntu-latest","macos":"macos-latest"}')[matrix.platform] }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux, macos]
+        arch: [amd64, arm64]
+    env:
+      GOOS: ${{ fromJson('{"linux":"linux","macos":"darwin"}')[matrix.platform] }}
+      GOARCH: ${{ matrix.arch }}
+      CGO_ENABLED: 0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: |
+          rm -f go.sum
+          go mod tidy
+          go mod verify
+      - run: go test ./...
+      - run: |
+          mkdir -p bin
+          go build -o bin/opsagent ./cmd/agent
+      - run: |
+          NAME="opsagent-${{ matrix.platform }}-${{ matrix.arch }}"
+          mkdir -p "package/$NAME"
+          cp -r bin "package/$NAME/"
+          tar -C package -czf "package/$NAME.tar.gz" "$NAME"
+          echo "ARTIFACT=package/$NAME.tar.gz" >> $GITHUB_ENV
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opsagent-${{ matrix.platform }}-${{ matrix.arch }}
+          path: ${{ env.ARTIFACT }}
+
+  unit-tests:
+    runs-on: ${{ fromJson('{"linux":"ubuntu-latest","macos":"macos-latest"}')[matrix.platform] }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux, macos]
+        arch: [amd64, arm64]
+    env:
+      GOOS: ${{ fromJson('{"linux":"linux","macos":"darwin"}')[matrix.platform] }}
+      GOARCH: ${{ matrix.arch }}
+      CGO_ENABLED: 0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: make test
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    env:
+      GOOS: linux
+      GOARCH: amd64
+      CGO_ENABLED: 0
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/ops?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: docker compose -f deploy/docker-compose.yml up -d
+      - run: |
+          go install github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+          make migrate
+      - run: make test
+      - if: always()
+        run: docker compose -f deploy/docker-compose.yml down
+
+  fixtures:
+    runs-on: ${{ fromJson('{"linux":"ubuntu-latest","macos":"macos-latest"}')[matrix.platform] }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux, macos]
+        arch: [amd64, arm64]
+    env:
+      GOOS: ${{ fromJson('{"linux":"linux","macos":"darwin"}')[matrix.platform] }}
+      GOARCH: ${{ matrix.arch }}
+      CGO_ENABLED: 0
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "TODO: add mock and fixture generation"
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
