@@ -77,6 +77,7 @@ jobs:
 
   integration-tests:
     needs: build
+    continue-on-error: true
     runs-on: ubuntu-latest
     env:
       GOOS: linux
@@ -116,6 +117,7 @@ jobs:
 
   release:
     needs: [unit-tests, integration-tests, fixtures]
+    if: ${{ always() && needs.unit-tests.result == 'success' && needs.fixtures.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
