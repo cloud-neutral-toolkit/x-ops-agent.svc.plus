@@ -51,16 +51,14 @@ jobs:
         shell: bash
         run: go test ./...
 
-      - name: Build (api & agent)
+      - name: Build
         shell: bash
         run: |
           mkdir -p bin
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            go build -o bin/opsagent-api.exe ./cmd/api
-            go build -o bin/opsagent-agent.exe ./cmd/agent
+            go build -o bin/opsagent.exe ./cmd/agent
           else
-            go build -o bin/opsagent-api ./cmd/api
-            go build -o bin/opsagent-agent ./cmd/agent
+            go build -o bin/opsagent ./cmd/agent
           fi
 
       - name: Package artifact
