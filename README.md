@@ -1,6 +1,11 @@
-# XOpsAgent (TimescaleDB + OpenObserve)
+# XOpsAgent (OPS Agent + MCP Server)
 
-一个最小可跑的闭环示例：Alertmanager → （OPS Agent）→ GitHub PR →（可选）ArgoCD 健康检测 → TimescaleDB 指标验证。
+当前仓库同时保留两类能力：
+
+1. 现有的告警/闭环 API 骨架与 TimescaleDB、OpenObserve、GitOps 链路。
+2. 新增的 OPS 智能体与 MCP Server，可优先通过 OpenClaw gateway 运行，失败时回退到本地嵌入式 Codex CLI。
+
+Codex 子仓库位于 `third_party/codex`，以 Git submodule 方式接入，避免触发 Go `vendor/` 机制冲突。
 
 核心 API 模块依次为 Sensor → Analyst → Planner → Gatekeeper → Executor →
 Librarian → Orchestrator，接口细节见 [docs/api.md](docs/api.md)。
@@ -41,7 +46,7 @@ OTLP 入口：http://localhost:5080/api/default/
 scripts/load_schema.sh
 ```
 
-### 3) 配置环境变量并运行 Agent
+### 3) 配置环境变量并运行 Agent / OPS 智能体
 
 创建 `.env`（或直接 export 环境变量）：
 
@@ -63,9 +68,24 @@ export ARGOCD_TOKEN="<argocd.jwt>"
 export ARGOCD_APP="your-app"
 ```
 
-运行：
+运行传统 API：
 ```bash
 go run ./cmd/agent
+```
+
+运行 OPS 智能体 HTTP 服务：
+```bash
+go run ./cmd/agent --mode ops --env-file .env
+```
+
+运行 MCP Server（stdio）：
+```bash
+go run ./cmd/agent --mode mcp --env-file .env
+```
+
+注册到 OpenClaw gateway：
+```bash
+go run ./cmd/agent --mode register --env-file .env
 ```
 
 ### 4) 发送告警（模拟 Alertmanager Webhook）
@@ -110,6 +130,41 @@ Agent 的 `/alertmanager` 接口在提交 PR、（可选）等待 ArgoCD Healthy
 - 真实环境建议把验证指标改用 p95/p99。
 - GitOps 优先，直连操作需 RBAC + 审计。
 - 把“规则+RAG 计划器”放在独立 `planner/` 模块；本 PoC 仅演示“关闭开关”。
+- `.env.example` 提供的是标准 env 写法；`ops/mcp/register` 模式也兼容当前仓库里已有的别名格式：
+  - `remote` -> `OPENCLAW_GATEWAY_URL`
+  - `remote-token` -> `OPENCLAW_GATEWAY_TOKEN`
+  - `AI-Gateway-Url` -> `AI_GATEWAY_URL`
+  - `AI-Gateway-apiKey` -> `AI_GATEWAY_API_KEY`
+
+## OPS Agent API
+
+`--mode ops` 会额外挂出以下接口：
+
+- `GET /healthz`
+- `POST /api/v1/cases`
+- `GET /api/v1/cases/{id}`
+- `POST /api/v1/analyze`
+- `POST /api/v1/plan`
+- `POST /api/v1/agent/run`
+- `POST /mcp`
+
+`/mcp` 为简化的 JSON-RPC MCP 入口；标准 stdio MCP 运行方式仍然推荐使用 `--mode mcp`。
+
+## OpenClaw 集成
+
+仓库通过 `openclaw gateway call` 调用远端 gateway RPC，支持：
+
+- `agents.list`
+- `agents.create`
+- `agents.update`
+
+因此可以在不直接嵌入 OpenClaw SDK 的前提下，按 `.env` 中的 gateway 地址和 token 自动完成 agent 注册或更新。
+
+智能体运行顺序如下：
+
+1. 优先调用 OpenClaw gateway 上的目标 agent。
+2. 若 gateway 不可用，则回退到本地 `codex` CLI。
+3. 若两者都不可用，则返回本地启发式分析结果。
 
 ## 常见问题
 
@@ -128,4 +183,3 @@ curl -X POST \
   -H "Authorization: Bearer <YOUR_TOKEN>" \
   https://api.github.com/repos/<OWNER>/<REPO>/actions/workflows/build-test-release.yml/dispatches \
   -d '{"ref":"main","inputs":{"build":"true","unit":"true","integration":"false","fixtures":"false","release":"false"}}'
-

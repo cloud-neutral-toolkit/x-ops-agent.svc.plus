@@ -1,8 +1,20 @@
-.PHONY: run test migrate deps tidy build clean-mod
+.PHONY: run run-ops run-mcp register-openclaw test migrate deps tidy build clean-mod
 
 # Run the API via unified binary
 run:
 	go run ./cmd/agent --mode api
+
+# Run the OPS agent HTTP surface
+run-ops:
+	go run ./cmd/agent --mode ops --env-file .env
+
+# Run the MCP server over stdio
+run-mcp:
+	go run ./cmd/agent --mode mcp --env-file .env
+
+# Register or update the OPS agent in OpenClaw gateway
+register-openclaw:
+	go run ./cmd/agent --mode register --env-file .env
 
 # Run all tests
 test:
