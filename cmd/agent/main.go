@@ -6,11 +6,16 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/yourname/XOpsAgent/api"
 	"github.com/yourname/XOpsAgent/internal/config"
+	"github.com/yourname/XOpsAgent/internal/mcp"
+	"github.com/yourname/XOpsAgent/internal/openclaw"
+	"github.com/yourname/XOpsAgent/internal/opsagent"
+	"github.com/yourname/XOpsAgent/internal/opshttp"
 	"github.com/yourname/XOpsAgent/internal/server"
 	"github.com/yourname/XOpsAgent/pkg/telemetry"
 )
@@ -94,9 +99,58 @@ func runAPI() {
 	}
 }
 
+func loadRuntimeConfig(envFile string) config.Config {
+	if strings.TrimSpace(envFile) != "" {
+		return config.LoadWithEnvFile(envFile)
+	}
+	if detected := config.DetectEnvFile(".env"); detected != "" {
+		return config.LoadWithEnvFile(detected)
+	}
+	return config.Load()
+}
+
+func runOps(envFile string) {
+	cfg := loadRuntimeConfig(envFile)
+	svc := opsagent.New(cfg)
+	mcpServer := mcp.NewServer(svc, cfg.Ops.MCPServerName)
+
+	if cfg.Ops.Gateway.RegisterOnStart {
+		if result, err := openclaw.RegisterOrUpdateAgent(context.Background(), cfg); err != nil {
+			log.Printf("openclaw register skipped: %v", err)
+		} else {
+			log.Printf("openclaw agent %s: %s", result.AgentID, result.Operation)
+		}
+	}
+
+	handler := opshttp.NewHandler(svc, mcpServer, cfg.Ops.Gateway.AgentID)
+	log.Printf("XOps OPS agent listening on %s", cfg.Ops.HTTPAddr)
+	if err := http.ListenAndServe(cfg.Ops.HTTPAddr, handler); err != nil {
+		log.Fatalf("ops listen: %v", err)
+	}
+}
+
+func runMCP(envFile string) {
+	cfg := loadRuntimeConfig(envFile)
+	svc := opsagent.New(cfg)
+	server := mcp.NewServer(svc, cfg.Ops.MCPServerName)
+	if err := server.Run(context.Background(), os.Stdin, os.Stdout); err != nil {
+		log.Fatalf("mcp run: %v", err)
+	}
+}
+
+func runRegister(envFile string) {
+	cfg := loadRuntimeConfig(envFile)
+	result, err := openclaw.RegisterOrUpdateAgent(context.Background(), cfg)
+	if err != nil {
+		log.Fatalf("openclaw register: %v", err)
+	}
+	log.Printf("openclaw agent %s %s (workspace=%s)", result.AgentID, result.Operation, result.Workspace)
+}
+
 func main() {
-	mode := flag.String("mode", "agent", "mode to run: agent or api")
+	mode := flag.String("mode", "agent", "mode to run: agent, api, ops, mcp, or register")
 	cfgPath := flag.String("config", "/etc/XOpsAgent.yaml", "path to config file (agent mode)")
+	envFile := flag.String("env-file", "", "path to a dotenv-style file for ops/mcp/register modes")
 	flag.Parse()
 
 	switch *mode {
@@ -104,6 +158,12 @@ func main() {
 		runAgent(*cfgPath)
 	case "api":
 		runAPI()
+	case "ops":
+		runOps(*envFile)
+	case "mcp":
+		runMCP(*envFile)
+	case "register":
+		runRegister(*envFile)
 	default:
 		log.Fatalf("unknown mode: %s", *mode)
 	}
