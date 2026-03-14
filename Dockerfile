@@ -4,7 +4,7 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o /api ./cmd/api
+RUN CGO_ENABLED=0 GOOS=linux go build -o /api ./cmd/agent
 
 # Runtime stage
 FROM gcr.io/distroless/base-debian12
