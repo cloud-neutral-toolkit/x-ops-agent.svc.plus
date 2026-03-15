@@ -32,9 +32,33 @@ XOpsAgent/
 
 ## 快速开始
 
+### 0) 统一部署入口
+```bash
+curl -fsSL "https://raw.githubusercontent.com/cloud-neutral-toolkit/x-ops-agent.svc.plus/main/scripts/setup.sh?$(date +%s)" | bash -s -- x-ops-agent.svc.plus process
+curl -fsSL "https://raw.githubusercontent.com/cloud-neutral-toolkit/x-ops-agent.svc.plus/main/scripts/setup.sh?$(date +%s)" | bash -s -- x-ops-agent.svc.plus process uninstall
+curl -fsSL "https://raw.githubusercontent.com/cloud-neutral-toolkit/x-ops-agent.svc.plus/main/scripts/setup.sh?$(date +%s)" | bash -s -- x-ops-agent.svc.plus docker
+curl -fsSL "https://raw.githubusercontent.com/cloud-neutral-toolkit/x-ops-agent.svc.plus/main/scripts/setup.sh?$(date +%s)" | bash -s -- x-ops-agent.svc.plus docker uninstall
+curl -fsSL "https://raw.githubusercontent.com/cloud-neutral-toolkit/x-ops-agent.svc.plus/main/scripts/setup.sh?$(date +%s)" | bash -s -- x-ops-agent.svc.plus cloud-run --set-env-vars="OPENCLAW_GATEWAY_URL=wss://...,OPENCLAW_GATEWAY_TOKEN=...,AI_GATEWAY_URL=...,AI_GATEWAY_API_KEY=..."
+```
+
+支持的部署模式：
+
+- `process`: 单机模式下构建本地二进制，写入 systemd 服务，并默认把 `x-ops-agent.svc.plus` 的 Caddy 配置写到 `/etc/caddy/conf.d/`
+- `docker`: 单机模式下使用 `deploy/docker-compose.yml` 启动整套依赖与 API，并默认把 `x-ops-agent.svc.plus` 的 Caddy 配置写到 `/etc/caddy/conf.d/`
+- `cloud-run`: 使用 `gcloud run deploy` 从当前源码目录部署到 Cloud Run
+
+可选环境变量：
+
+- `ENV_FILE`: `process` 模式使用的 env 文件，默认 `.env`
+- `COMPOSE_FILE`: `docker` 模式使用的 compose 文件，默认 `deploy/docker-compose.yml`
+- `CLOUD_RUN_REGION`: `cloud-run` 模式部署区域，默认 `europe-west1`
+- `PROCESS_PORT`: `process` 模式本地监听端口，默认 `18084`
+- `DOCKER_PORT`: `docker` 模式 Caddy 反代端口，默认 `8080`
+- `CADDY_CONF_DIR`: Caddy 配置目录，默认 `/etc/caddy/conf.d`
+
 ### 1) 启动 TimescaleDB + OpenObserve + OTel Collector
 ```bash
-docker compose up -d
+docker compose -f deploy/docker-compose.yml up -d
 ```
 
 OpenObserve UI: http://localhost:5080  （默认账号 admin@example.com / ComplexPass123!）
