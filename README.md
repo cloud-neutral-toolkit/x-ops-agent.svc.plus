@@ -88,7 +88,29 @@ go run ./cmd/agent --mode mcp --env-file .env
 go run ./cmd/agent --mode register --env-file .env
 ```
 
-### 4) 发送告警（模拟 Alertmanager Webhook）
+### 4) Cloud Run 部署 (推荐方式)
+
+项目已针对 Google Cloud Run 进行了优化，运行在 **OPS 智能体模式**下。
+
+#### 快速部署
+```bash
+gcloud run deploy x-ops-agent-svc-plus \
+  --source . \
+  --region europe-west1 \
+  --set-env-vars="OPENCLAW_GATEWAY_URL=wss://...,OPENCLAW_GATEWAY_TOKEN=...,AI_GATEWAY_URL=...,AI_GATEWAY_API_KEY=..."
+```
+
+#### 关键配置
+Cloud Run 默认使用 `-mode ops` 启动。你需要配置以下环境变量（支持别名）：
+
+| 环境变量名称 (推荐) | 原始别名 (.env) | 说明 |
+| :--- | :--- | :--- |
+| `OPENCLAW_GATEWAY_URL` | `remote` | OpenClaw Gateway 地址 (wss://...) |
+| `OPENCLAW_GATEWAY_TOKEN` | `remote-token` | Gateway 访问令牌 |
+| `AI_GATEWAY_URL` | `AI-Gateway-Url` | AI 接口 Base URL (https://api.svc.plus/v1) |
+| `AI_GATEWAY_API_KEY` | `AI-Gateway-apiKey` | AI 接口访问密钥 |
+
+### 5) 发送告警（模拟 Alertmanager Webhook）
 ```bash
 curl -XPOST http://localhost:8080/alertmanager -H 'Content-Type: application/json' -d '{
   "status": "firing",
