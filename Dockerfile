@@ -9,6 +9,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o /api ./cmd/agent
 # Runtime stage
 FROM gcr.io/distroless/base-debian12
 COPY --from=build /api /api
+COPY configs/XOpsAgent.yaml /etc/XOpsAgent.yaml
 EXPOSE 8080
 USER nonroot:nonroot
-ENTRYPOINT ["/api"]
+ENTRYPOINT ["/api", "-mode", "ops"]
