@@ -55,6 +55,8 @@ curl -fsSL "https://raw.githubusercontent.com/cloud-neutral-toolkit/x-ops-agent.
 - `PROCESS_PORT`: `process` 模式本地监听端口，默认 `18084`
 - `DOCKER_PORT`: `docker` 模式 Caddy 反代端口，默认 `8080`
 - `CADDY_CONF_DIR`: Caddy 配置目录，默认 `/etc/caddy/conf.d`
+- `BUILD_GOFLAGS`: `process` 模式 Go 构建参数，默认 `-p=1`
+- `BUILD_GOMAXPROCS`: `process` 模式构建并发，默认 `1`
 
 ### 1) 启动 TimescaleDB + OpenObserve + OTel Collector
 ```bash

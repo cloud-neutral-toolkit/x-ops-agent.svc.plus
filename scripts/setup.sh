@@ -15,6 +15,8 @@ CADDY_CONF_PATH="${CADDY_CONF_DIR}/${PROJECT_NAME}.conf"
 SYSTEMD_UNIT_NAME="$(printf '%s' "${PROJECT_NAME:-x-ops-agent.svc.plus}" | tr '[:upper:]' '[:lower:]' | tr '.' '-')"
 SYSTEMD_UNIT_PATH="/etc/systemd/system/${SYSTEMD_UNIT_NAME}.service"
 INSTALL_BIN_PATH="${INSTALL_BIN_PATH:-/usr/local/bin/${SYSTEMD_UNIT_NAME}}"
+BUILD_GOFLAGS="${BUILD_GOFLAGS:--p=1}"
+BUILD_GOMAXPROCS="${BUILD_GOMAXPROCS:-1}"
 
 usage() {
   cat <<'EOF'
@@ -36,6 +38,8 @@ Environment overrides:
   PROCESS_PORT=18084
   DOCKER_PORT=8080
   CADDY_CONF_DIR=/etc/caddy/conf.d
+  BUILD_GOFLAGS=-p=1
+  BUILD_GOMAXPROCS=1
 EOF
 }
 
@@ -128,7 +132,7 @@ install_process_mode() {
   fi
 
   cd "$ROOT_DIR"
-  go build -o "$INSTALL_BIN_PATH" ./cmd/agent
+  env GOFLAGS="$BUILD_GOFLAGS" GOMAXPROCS="$BUILD_GOMAXPROCS" go build -o "$INSTALL_BIN_PATH" ./cmd/agent
   write_systemd_unit
   run_root systemctl enable --now "$(basename "$SYSTEMD_UNIT_PATH")"
   write_caddy_config "127.0.0.1:${PROCESS_PORT}"
