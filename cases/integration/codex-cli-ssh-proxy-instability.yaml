@@ -1,0 +1,191 @@
+schema_version: 1
+id: codex-cli-ssh-proxy-instability
+title: SSH instability through Xray proxy with downstream sshd throttling
+
+agent_profile:
+  kernel: codex-cli
+  model: gpt-5.4
+  role: ops-agent
+  operating_mode: autonomous-investigation
+  expected_output:
+    - isolate_fault_domain
+    - correlate_multi_host_logs
+    - recommend_safe_runtime_changes
+    - avoid_false_blame_on_caddy
+
+toolchain:
+  allowed_tools:
+    - codex-cli
+    - ssh-mcp-server
+  tool_expectations:
+    - Use codex-cli for reasoning, diagnosis synthesis, and execution planning.
+    - Use ssh-mcp-server for remote inspection, configuration changes, and verification.
+    - Treat this as an OPS workflow, not a coding-only workflow.
+
+scenario:
+  summary: >
+    A single-node migration effort uses jp-xhttp.svc.plus as a proxy host and
+    us-xhttp.svc.plus as the deployment target. SSH sessions routed through the
+    proxy appear unstable during deployment and diagnostics.
+  objective: >
+    Determine whether the instability is caused by Caddy, Xray, target-side
+    sshd, firewall policy, or system resource pressure.
+  topology:
+    operator_egress: 57.183.19.25
+    proxy_host:
+      ssh: ubuntu@jp-xhttp.svc.plus
+      public_name: jp-xhttp.svc.plus
+      role: xray-plus-caddy proxy host
+    target_host:
+      ssh: root@us-xhttp.svc.plus
+      public_ip: 5.78.45.49
+      role: deployment target
+  symptom:
+    - SSH over the proxy intermittently fails during migration work.
+    - Caddy logs mention incomplete upstream responses.
+    - Xray logs include SSH traffic to tcp:5.78.45.49:22.
+
+evidence:
+  representative_findings:
+    - host: jp-xhttp.svc.plus
+      kind: sshd
+      observation: sshd stays active and accepts valid public-key sessions.
+    - host: jp-xhttp.svc.plus
+      kind: caddy
+      observation: reverse proxy logs show "context canceled" against xray.sock.
+    - host: jp-xhttp.svc.plus
+      kind: xray
+      observation: xray accepts and opens tcp:5.78.45.49:22 connections.
+    - host: jp-xhttp.svc.plus
+      kind: xray
+      observation: >
+        xray later logs "read: connection reset by peer" on connections to
+        5.78.45.49:22.
+    - host: us-xhttp.svc.plus
+      kind: sshd
+      observation: >
+        sshd logs "error: beginning MaxStartups throttling" and drops
+        connections from 57.183.19.25.
+    - host: us-xhttp.svc.plus
+      kind: sshd
+      observation: >
+        sshd later logs "exited MaxStartups throttling after 00:02:56, 22
+        connections dropped".
+    - host: us-xhttp.svc.plus
+      kind: dmesg
+      observation: >
+        kernel reports Out of memory and kills a compile process during the same
+        investigation window.
+    - host: jp-xhttp.svc.plus
+      kind: firewall
+      observation: ufw inactive and INPUT policy ACCEPT.
+    - host: us-xhttp.svc.plus
+      kind: firewall
+      observation: ufw inactive and INPUT policy ACCEPT.
+  sample_logs:
+    - source: jp-xhttp.svc.plus/xray
+      text: >
+        app/proxyman/outbound: failed to process outbound traffic > proxy/freedom:
+        connection ends > proxy: failed to process response > read tcp
+        172.31.18.222:24882->5.78.45.49:22: read: connection reset by peer
+    - source: us-xhttp.svc.plus/sshd
+      text: >
+        error: beginning MaxStartups throttling
+    - source: us-xhttp.svc.plus/sshd
+      text: >
+        drop connection #12 from [57.183.19.25]:22154 on [5.78.45.49]:22 past
+        MaxStartups
+    - source: us-xhttp.svc.plus/dmesg
+      text: >
+        Out of memory: Killed process 115155 (compile)
+
+tasks:
+  required_steps:
+    - Inspect sshd health on both proxy and target hosts.
+    - Inspect Caddy and Xray logs on the proxy host.
+    - Inspect firewall state on both hosts.
+    - Correlate timestamps between Xray resets and target sshd throttling.
+    - Distinguish between symptom reporters and actual root cause.
+    - Apply low-risk runtime mitigations before broad firewall allowlists.
+    - Verify that the mitigation actually reduces the fault condition.
+  guardrails:
+    - Do not conclude Caddy is the root cause based only on upstream cancel logs.
+    - Do not recommend IP allowlists as the first action in this case.
+    - Preserve current access while applying SSH hardening.
+
+expected_findings:
+  root_cause:
+    - The immediate connection drops come from the target host, not the proxy.
+    - The target sshd is throttling new connections because MaxStartups is too low.
+    - Memory pressure on the target host increases operational instability.
+  non_root_causes:
+    - Caddy is not the primary root cause.
+    - Xray is part of the transport path but not the primary initiator of resets.
+  contributing_factors:
+    - Both hosts expose tcp/22 publicly and receive repeated scanner traffic.
+    - Password authentication on the target host increases attack surface.
+    - High SSH session churn from automation and diagnostics amplifies MaxStartups pressure.
+
+expected_actions:
+  immediate:
+    - Set explicit sshd_config values for MaxStartups.
+    - Disable password authentication and require public-key authentication.
+    - Keep root access restricted to prohibit-password rather than full disable.
+    - Add a lightweight blacklist for high-frequency failed SSH source IPs.
+  follow_up:
+    - Add swap on the target host.
+    - Reduce Ansible SSH multiplexing and burstiness during validation.
+    - Consider later moving to source allowlisting after validating stable access.
+
+closed_loop:
+  execution_requirement: >
+    The OPS agent should not stop at diagnosis. It should use ssh-mcp-server to
+    inspect, change, and verify remote runtime state where the requested action
+    is low risk and operationally scoped.
+  expected_runtime_changes:
+    - Create explicit sshd drop-in overrides on both hosts.
+    - Reload sshd only after config syntax validation passes.
+    - Apply a lightweight SSH blacklist chain for repeated failed sources.
+  required_feedback:
+    - Summarize what changed on each host.
+    - Report verification evidence after each remediation step.
+    - State remaining risks and next actions if the issue is only partially mitigated.
+
+acceptance_criteria:
+  must_include:
+    - A clear statement that Caddy is not the primary cause.
+    - A clear statement that us-xhttp.svc.plus sshd MaxStartups throttling is real.
+    - A clear statement that xray reset-by-peer points to downstream closure.
+    - A clear statement that target-side memory pressure is present.
+  recommended_changes:
+    - sshd MaxStartups raised explicitly
+    - PasswordAuthentication disabled
+    - PubkeyAuthentication enabled
+    - Lightweight SSH blacklist enabled without full IP allowlist
+    - Runtime verification performed after changes
+  failure_conditions:
+    - Blames Caddy as the root cause without correlating sshd logs.
+    - Stops after static diagnosis without attempting safe operational remediation.
+    - Recommends cutting over to restrictive firewall allowlists before stabilizing access.
+    - Ignores the target host OOM event.
+
+verification_commands:
+  proxy_host:
+    - journalctl -u xray --since "45 minutes ago" --no-pager
+    - journalctl -u caddy --since "45 minutes ago" --no-pager
+    - journalctl -u ssh -u sshd --since "45 minutes ago" --no-pager
+    - ss -tnp
+    - sudo ufw status verbose
+    - sudo iptables -L -n -v
+  target_host:
+    - journalctl -u ssh -u sshd --since "45 minutes ago" --no-pager
+    - sudo dmesg -T | tail -n 120
+    - ss -tnp
+    - sudo ufw status verbose
+    - sudo iptables -L -n -v
+
+notes:
+  rationale: >
+    This case is designed to validate that Codex CLI, acting as the OPS agent
+    kernel on GPT-5.4, can follow a realistic cross-host troubleshooting path,
+    avoid blaming the wrong component, and converge on a safe remediation plan.

@@ -1,0 +1,24 @@
+# Copy to ansible/vars/x-ops-agent.host.yml (gitignored), or store the real values
+# in an external Ansible Vault file and pass it with:
+#   ansible-playbook -D -C ansible/playbooks/deploy_x_ops_agent_compose.yml -e @/secure/path/x-ops-agent.vault.yml
+
+service_compose_image: ghcr.io/YOUR_GITHUB_ORG/x-ops-agent:latest
+service_compose_registry_server: ghcr.io
+service_compose_registry_username: CHANGE_ME
+service_compose_registry_password: CHANGE_ME
+service_compose_env_common:
+  DATABASE_URL: CHANGE_ME
+  OPENCLAW_GATEWAY_URL: CHANGE_ME
+  OPENCLAW_GATEWAY_TOKEN: CHANGE_ME
+  OPENCLAW_AGENT_ID: xops-agent
+  OPENCLAW_AGENT_NAME: XOpsAgent
+  AI_GATEWAY_URL: CHANGE_ME
+  AI_GATEWAY_API_KEY: CHANGE_ME
+  OPENCLAW_REGISTER_ON_START: "true"
+service_compose_deploy_targets:
+  - name: prod
+    deploy_subdomain_prefix: x-ops-agent
+    stable_domains:
+      - x-ops-agent.svc.plus
+    host_port: 18084
+    env: {}

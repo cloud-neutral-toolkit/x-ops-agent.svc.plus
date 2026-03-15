@@ -1,0 +1,7 @@
+- name: Deploy x-ops-agent.svc.plus to the single-node Docker Compose host
+  hosts: server
+  become: yes
+  gather_facts: yes
+  roles:
+    - role: x_ops_agent_compose_deploy
+
